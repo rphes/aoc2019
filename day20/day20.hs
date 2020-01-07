@@ -4,14 +4,17 @@ import           BFS
 import           Data.Char
 import           Data.Foldable
 import           Data.Function   (on)
+import           Data.Heap       (MinPrioHeap)
+import qualified Data.Heap       as Heap
 import           Data.List
 import           Data.List.Split
 import           Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
 import           Data.Maybe
+import           Data.Sequence   (Seq ((:<|)), (|>))
+import qualified Data.Sequence   as Seq
 import           Data.Set        (Set)
 import qualified Data.Set        as Set
-import           Debug.Trace
 
 type Point = (Int, Int)
 
@@ -20,6 +23,8 @@ type Path = [(Point, Char)]
 type Maze = Map Point Char
 
 type Portals = Map Point Point
+
+type Bounds = ((Int, Int), (Int, Int))
 
 adjacentPoints :: Point -> [Point]
 adjacentPoints (x, y) = [(x, y + 1), (x + 1, y), (x, y - 1), (x - 1, y)]
@@ -82,10 +87,6 @@ initialize input = do
           grouped
   Just (maze, mapping, start, end)
 
-part1 input = do
-  (maze, portals, start, end) <- initialize input
-  bfs start end (adjacencyList maze portals)
-
 drawPath path maze =
   let maze' = foldr (\p m -> Map.insert p '*' m) maze path
       ((width, height), _) = Map.findMax maze
@@ -93,9 +94,54 @@ drawPath path maze =
       chunksOf (width + 1) $
       mapMaybe (maze' !?) [(x, y) | y <- [0 .. height], x <- [0 .. width]]
 
+recursiveAdjacencyList ::
+     Maze -> Portals -> Bounds -> (Int, Point) -> Maybe [(Int, Point)]
+recursiveAdjacencyList maze portals ((xl, xr), (yt, yb)) (level, point@(x, y)) =
+  foldrM
+    (\point' list ->
+       case Map.lookup point' maze of
+         Just '.' -> Just $ (level, point') : list
+         Just c
+           | isUpper c ->
+             case Map.lookup point portals of
+               Just portal ->
+                 let isOuter = x <= xl || x >= xr || y <= yt || y >= yb
+                  in case (isOuter, level) of
+                       (True, 0) -> Just list
+                       (True, _) -> Just $ (level - 1, portal) : list
+                       (_, _)    -> Just $ (level + 1, portal) : list
+               Nothing -> Just list
+           | otherwise -> Just list
+         _ -> Nothing)
+    []
+    (adjacentPoints point)
+
+run :: String -> Maybe (IO ())
+run input = do
+  (maze, portals, start, end) <- initialize input
+  path1 <-
+    bfs
+      start
+      end
+      (adjacencyList maze portals)
+      (flip (|>))
+      (\case
+         (h :<| t) -> Just (h, t)
+         _ -> Nothing)
+      Seq.empty
+  ((xMax, yMax), _) <- Map.lookupMax maze
+  let bounds = ((2, xMax - 2), (2, yMax - 2))
+  path2 <-
+    bfs
+      (0, start)
+      (0, end)
+      (recursiveAdjacencyList maze portals bounds)
+      Heap.insert
+      Heap.view
+      (Heap.empty :: MinPrioHeap Int Point)
+  Just $ print (length path1 - 1) >> print (length path2 - 1)
+
 main = do
   contents <- readFile "input.txt"
-  let path = fromMaybe [] (part1 contents)
-      maze = fromJust $ getMaze contents
-  print $ subtract 1 $ length path
+  fromMaybe (error "No solution") (run contents)
   -- putStr $ drawPath path maze

@@ -2,8 +2,6 @@ module BFS where
 
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import           Data.Sequence   (Seq ((:<|)), (|>))
-import qualified Data.Sequence   as Seq
 import           Data.Set        (Set)
 import qualified Data.Set        as Set
 
@@ -11,12 +9,14 @@ bfs' ::
      (Eq a, Ord a, Show a)
   => a
   -> (a -> Maybe [a])
-  -> Seq a
+  -> (a -> b -> b)
+  -> (b -> Maybe (a, b))
+  -> b
   -> Set a
   -> Map a a
   -> Maybe (Map a a)
-bfs' target lookupF Seq.Empty visited prev = Nothing
-bfs' target lookupF (node :<| queue) visited prev =
+bfs' target lookupF enqueueF dequeueF queue visited prev = do
+  (node, queue') <- dequeueF queue
   if node == target
     then Just prev
     else do
@@ -24,9 +24,9 @@ bfs' target lookupF (node :<| queue) visited prev =
       let neighbors' = filter (`Set.notMember` visited) neighbors
           prev' =
             foldr (\neigh prev' -> Map.insert neigh node prev') prev neighbors'
-          queue' = foldr (flip (|>)) queue neighbors'
+          queue'' = foldr enqueueF queue' neighbors'
           visited' = foldr Set.insert visited neighbors'
-      bfs' target lookupF queue' visited' prev'
+      bfs' target lookupF enqueueF dequeueF queue'' visited' prev'
 
 backtrack :: (Eq a, Ord a, Show a) => [a] -> Map a a -> Maybe [a]
 backtrack path@(x:_) prev =
@@ -34,8 +34,17 @@ backtrack path@(x:_) prev =
     Just n  -> backtrack (n : path) prev
     Nothing -> Just $ reverse path
 
-bfs :: (Eq a, Ord a, Show a) => a -> a -> (a -> Maybe [a]) -> Maybe [a]
-bfs source target lookupF =
-  let queue = Seq.singleton source
+bfs ::
+     (Eq a, Ord a, Show a)
+  => a
+  -> a
+  -> (a -> Maybe [a])
+  -> (a -> b -> b)
+  -> (b -> Maybe (a, b))
+  -> b
+  -> Maybe [a]
+bfs source target lookupF enqueueF dequeueF emptyQueue =
+  let queue = enqueueF source emptyQueue
       visited = Set.singleton source
-   in bfs' target lookupF queue visited Map.empty >>= backtrack [target]
+   in bfs' target lookupF enqueueF dequeueF queue visited Map.empty >>=
+      backtrack [target]
