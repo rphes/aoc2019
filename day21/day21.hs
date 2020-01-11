@@ -21,10 +21,38 @@ formatOutput prog =
 -- #####...#########
 -- #####..#.########
 part1 prog =
-  let input = map fromEnum "NOT A J\nAND D J\nNOT C T\nAND D T\nOR T J\nWALK\n"
+  let input =
+        map fromEnum $
+        unlines ["NOT A J", "AND D J", "NOT C T", "AND D T", "OR T J", "WALK"]
+   in formatOutput $ run (prog input)
+
+-- Robot jumps 4 steps
+-- Cases:
+-- #####.###########
+-- #####...#########
+-- #####..#.########
+-- #####.#.##..#.###
+-- #####.##.########
+-- #####.#..########
+part2 prog =
+  let input =
+        map fromEnum $
+        unlines
+          [ "NOT A J"
+          , "AND D J"
+          , "NOT B T"
+          , "AND D T"
+          , "OR T J"
+          , "NOT C T"
+          , "AND D T"
+          , "AND H T"
+          , "OR T J"
+          , "RUN"
+          ]
    in formatOutput $ run (prog input)
 
 main = do
   contents <- readFile "input.txt"
   let prog = initProgram (map read $ splitOn "," contents :: [Int])
   putStr $ part1 prog
+  putStr $ part2 prog
