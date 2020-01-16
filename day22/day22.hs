@@ -1,34 +1,60 @@
 {-# LANGUAGE ViewPatterns #-}
 
-import           Control.Monad
-import           Data.List
-import           Data.Semigroup
-import           Data.Tuple
-import           Debug.Trace
+import           Data.List hiding (repeat)
+import           Prelude   hiding (repeat)
 
-type Position = Int
+type Perm = (Integer, Integer)
 
-dealNew :: Int -> Position -> Position
-dealNew l x = l - 1 - x
+deal :: Integer -> Perm
+deal n = (-1, n - 1)
 
-cut :: Int -> Int -> Position -> Position
-cut n l x = (x - n) `mod` l
+cut :: Integer -> Perm
+cut k = (1, -k)
 
-dealWithInc :: Int -> Int -> Position -> Position
-dealWithInc n l x = (x * n) `mod` l
+inc :: Integer -> Perm
+inc k = (k, 0)
 
-step :: String -> Int -> Int -> Int
-step "deal into new stack" numCards pos = dealNew numCards pos
-step (stripPrefix "cut " -> Just n) numCards pos = cut (read n) numCards pos
-step (stripPrefix "deal with increment " -> Just n) numCards pos =
-  dealWithInc (read n) numCards pos
+combine :: Integer -> Perm -> Perm -> Perm
+combine n (a, b) (c, d) = ((a * c) `mod` n, (b * c + d) `mod` n)
 
-shuffle :: [String] -> Int -> Int -> Int
-shuffle steps numCards pos = foldl (\p s -> step s numCards p) pos steps
+combineAll n = foldl1 (combine n)
 
-part1 :: [String] -> Int
-part1 steps = shuffle steps 10007 2019
+shuffle :: Integer -> Integer -> Perm -> Integer
+shuffle x n (a, b) = (x * a + b) `mod` n
+
+step :: Integer -> String -> Perm
+step n "deal into new stack"                          = deal n
+step n (stripPrefix "cut " -> Just k)                 = cut (read k)
+step n (stripPrefix "deal with increment " -> Just k) = inc (read k)
+
+part1 :: Integer -> Integer -> [String] -> Integer
+part1 x n input = shuffle x n (combineAll n (map (step n) input))
+
+expMod :: Integer -> Integer -> Integer -> Integer
+expMod _ _ 0 = 1
+expMod n x k
+  | even k = expMod n ((x * x) `mod` n) (div k 2) `mod` n
+  | odd k = x * expMod n ((x * x) `mod` n) (div (k - 1) 2) `mod` n
+
+modInv n x = expMod n x (n - 2)
+
+repeat :: Integer -> Integer -> Perm -> Perm
+repeat n t (a, b) =
+  let power = expMod n a t
+   in (power, b * (1 - power) * modInv n (1 - a))
+
+invert :: Integer -> Perm -> Perm
+invert n (a, b) =
+  let inv = modInv n a
+   in (inv, (-b * inv) `mod` n)
+
+part2 :: Integer -> Integer -> Integer -> [String] -> Integer
+part2 x n t input =
+  let perm = combineAll n (map (step n) input)
+      perm' = repeat n t perm
+   in shuffle 2020 n (invert n perm')
 
 main = do
   contents <- readFile "input.txt"
-  print $ part1 (lines contents)
+  print $ part1 2019 10007 (lines contents)
+  print $ part2 2020 119315717514047 101741582076661 (lines contents)
